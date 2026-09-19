@@ -119,38 +119,6 @@ def format_period_label(value):
         return str(value)
 
 
-def get_dynamic_period_columns(stock):
-    if stock is None:
-        return ['Current']
-
-    candidate_columns = []
-    for statement in [
-        getattr(stock, 'financials', None),
-        getattr(stock, 'quarterly_financials', None),
-        getattr(stock, 'balance_sheet', None),
-        getattr(stock, 'quarterly_balance_sheet', None),
-        getattr(stock, 'cashflow', None),
-        getattr(stock, 'quarterly_cashflow', None),
-    ]:
-        if statement is not None and hasattr(statement, 'columns'):
-            candidate_columns.extend(list(statement.columns))
-
-    unique_labels = []
-    seen = set()
-    for col in candidate_columns:
-        label = format_period_label(col)
-        if label and label not in seen:
-            unique_labels.append(label)
-            seen.add(label)
-        if len(unique_labels) >= 6:
-            break
-
-    if not unique_labels:
-        return ['Current']
-
-    return ['Current'] + unique_labels[:5]
-
-
 def render_valuation_measures_table(info, stock=None):
     currency_code = (info.get('currency') or 'USD').upper()
     symbol = get_currency_symbol(currency_code)
@@ -181,100 +149,30 @@ def render_valuation_measures_table(info, stock=None):
             return 'N/A'
         return f'{value:,.2f}'
 
-    value_series = {
-        'Market Cap': [
+    valuation_df = pd.DataFrame({
+        'Metric': [
+            'Market Cap',
+            'Enterprise Value',
+            'Trailing P/E',
+            'Forward P/E',
+            'PEG Ratio (5y expected)',
+            'Price/Sales',
+            'Price/Book',
+            'Enterprise Value/Revenue',
+            'Enterprise Value/EBITDA',
+        ],
+        'Current': [
             fmt_money(current_market_cap),
-            fmt_money((current_market_cap or 0) * 0.76),
-            fmt_money((current_market_cap or 0) * 0.84),
-            fmt_money((current_market_cap or 0) * 0.88),
-            fmt_money((current_market_cap or 0) * 0.92),
-            fmt_money((current_market_cap or 0) * 0.98)
-        ],
-        'Enterprise Value': [
             fmt_money(current_ev),
-            fmt_money((current_ev or 0) * 0.78),
-            fmt_money((current_ev or 0) * 0.82),
-            fmt_money((current_ev or 0) * 0.86),
-            fmt_money((current_ev or 0) * 0.90),
-            fmt_money((current_ev or 0) * 0.95)
-        ],
-        'Trailing P/E': [
             fmt_ratio(current_pe),
-            fmt_ratio((current_pe or 0) * 0.83),
-            fmt_ratio((current_pe or 0) * 0.90),
-            fmt_ratio((current_pe or 0) * 0.98),
-            fmt_ratio((current_pe or 0) * 1.06),
-            fmt_ratio((current_pe or 0) * 1.18)
-        ],
-        'Forward P/E': [
             fmt_ratio(current_forward_pe),
-            fmt_ratio((current_forward_pe or 0) * 0.82),
-            fmt_ratio((current_forward_pe or 0) * 0.92),
-            fmt_ratio((current_forward_pe or 0) * 1.02),
-            fmt_ratio((current_forward_pe or 0) * 1.07),
-            fmt_ratio((current_forward_pe or 0) * 1.19)
-        ],
-        'PEG Ratio (5y expected)': [
             fmt_ratio(current_peg),
-            fmt_ratio((current_peg or 0) * 0.72),
-            fmt_ratio((current_peg or 0) * 1.08),
-            fmt_ratio((current_peg or 0) * 0.94),
-            fmt_ratio((current_peg or 0) * 1.14),
-            fmt_ratio((current_peg or 0) * 1.24)
-        ],
-        'Price/Sales': [
             fmt_ratio(current_price_sales),
-            fmt_ratio((current_price_sales or 0) * 0.83),
-            fmt_ratio((current_price_sales or 0) * 1.17),
-            fmt_ratio((current_price_sales or 0) * 1.15),
-            fmt_ratio((current_price_sales or 0) * 1.14),
-            fmt_ratio((current_price_sales or 0) * 1.36)
-        ],
-        'Price/Book': [
             fmt_ratio(current_price_book),
-            fmt_ratio((current_price_book or 0) * 0.91),
-            fmt_ratio((current_price_book or 0) * 1.31),
-            fmt_ratio((current_price_book or 0) * 1.30),
-            fmt_ratio((current_price_book or 0) * 1.41),
-            fmt_ratio((current_price_book or 0) * 1.80)
-        ],
-        'Enterprise Value/Revenue': [
             fmt_ratio(current_ev_revenue),
-            fmt_ratio((current_ev_revenue or 0) * 0.91),
-            fmt_ratio((current_ev_revenue or 0) * 1.12),
-            fmt_ratio((current_ev_revenue or 0) * 1.12),
-            fmt_ratio((current_ev_revenue or 0) * 1.29),
-            fmt_ratio((current_ev_revenue or 0) * 1.42)
-        ],
-        'Enterprise Value/EBITDA': [
             fmt_ratio(current_ev_ebitda),
-            fmt_ratio((current_ev_ebitda or 0) * 0.88),
-            fmt_ratio((current_ev_ebitda or 0) * 1.09),
-            fmt_ratio((current_ev_ebitda or 0) * 1.06),
-            fmt_ratio((current_ev_ebitda or 0) * 1.22),
-            fmt_ratio((current_ev_ebitda or 0) * 1.31)
         ],
-    }
-
-    date_columns = get_dynamic_period_columns(stock)
-    if len(date_columns) < 2:
-        date_columns = ['Current']
-
-    dynamic_values = []
-    for metric in value_series.keys():
-        row = value_series[metric]
-        if len(row) < len(date_columns):
-            row = row + ['N/A'] * (len(date_columns) - len(row))
-        dynamic_values.append(row[:len(date_columns)])
-
-    valuation_df = pd.DataFrame(
-        {
-            'Metric': list(value_series.keys()),
-            **{date_columns[i]: [row[i] for row in dynamic_values] for i in range(len(date_columns))}
-        }
-    )
-    valuation_df = valuation_df.set_index('Metric')
-    valuation_df = valuation_df[date_columns]
+    }).set_index('Metric')
 
     st.subheader('Valuation Measures', divider=True)
     st.dataframe(
@@ -286,7 +184,7 @@ def render_valuation_measures_table(info, stock=None):
                 help=f'{col} valuation measure',
                 width='medium'
             )
-            for col in date_columns
+            for col in valuation_df.columns
         }
     )
 
@@ -326,6 +224,32 @@ def render_overview_section(info, stock):
 
     st.subheader('Description', divider=True)
     st.text(info.get('longBusinessSummary', 'No description available.'))
+
+    st.subheader('Shareholders', divider=True)
+    try:
+        major_holders = stock.major_holders
+    except Exception:
+        major_holders = pd.DataFrame()
+
+    if major_holders is not None and not major_holders.empty:
+        major_holders_df = major_holders.copy()
+        if major_holders_df.shape[1] >= 2:
+            major_holders_df = major_holders_df.iloc[:, :2]
+            major_holders_df.columns = ['Measure', 'Value']
+            st.dataframe(major_holders_df, hide_index=True, use_container_width=True)
+    else:
+        st.info('No major holder information available.')
+
+    try:
+        institutional_holders = stock.institutional_holders
+    except Exception:
+        institutional_holders = pd.DataFrame()
+
+    if institutional_holders is not None and not institutional_holders.empty:
+        st.caption('Largest reported institutional holders')
+        st.dataframe(institutional_holders, hide_index=True, use_container_width=True)
+    else:
+        st.info('No institutional holder information available.')
 
     st.subheader('Key Executives', divider=True)
     exec = info.get('companyOfficers', [])

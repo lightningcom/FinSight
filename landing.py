@@ -4,7 +4,7 @@ from caller import render_stock_dashboard
 
 
 st.set_page_config(
-    page_title='FinSight',
+    page_title='FinanceSight',
     layout='wide'
 )
 
