@@ -98,97 +98,6 @@ def render_stats_grid(stats_dict, currency_code='USD', percent_labels=None):
                 st.metric(label=label, value=display_value)
 
 
-def format_period_label(value):
-    if value is None:
-        return 'Current'
-
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return 'Current'
-        value = value.split(' ')[0]
-        try:
-            date_value = pd.to_datetime(value)
-            return date_value.strftime('%-m/%-d/%Y')
-        except Exception:
-            return value
-
-    try:
-        return pd.to_datetime(value).strftime('%-m/%-d/%Y')
-    except Exception:
-        return str(value)
-
-
-def render_valuation_measures_table(info, stock=None):
-    currency_code = (info.get('currency') or 'USD').upper()
-    symbol = get_currency_symbol(currency_code)
-
-    current_market_cap = info.get('marketCap')
-    current_ev = info.get('enterpriseValue')
-    current_pe = info.get('trailingPE')
-    current_forward_pe = info.get('forwardPE')
-    current_peg = info.get('pegRatio')
-    current_price_sales = info.get('priceToSalesTrailing12Months')
-    current_price_book = info.get('priceToBook')
-    current_ev_revenue = info.get('enterpriseToRevenue')
-    current_ev_ebitda = info.get('enterpriseToEbitda')
-
-    def fmt_money(value):
-        if value is None:
-            return 'N/A'
-        if abs(value) >= 1_000_000_000_000:
-            return f'{symbol}{value / 1_000_000_000_000:,.2f}T'
-        if abs(value) >= 1_000_000_000:
-            return f'{symbol}{value / 1_000_000_000:,.2f}B'
-        if abs(value) >= 1_000_000:
-            return f'{symbol}{value / 1_000_000:,.2f}M'
-        return f'{symbol}{value:,.0f}'
-
-    def fmt_ratio(value):
-        if value is None:
-            return 'N/A'
-        return f'{value:,.2f}'
-
-    valuation_df = pd.DataFrame({
-        'Metric': [
-            'Market Cap',
-            'Enterprise Value',
-            'Trailing P/E',
-            'Forward P/E',
-            'PEG Ratio (5y expected)',
-            'Price/Sales',
-            'Price/Book',
-            'Enterprise Value/Revenue',
-            'Enterprise Value/EBITDA',
-        ],
-        'Current': [
-            fmt_money(current_market_cap),
-            fmt_money(current_ev),
-            fmt_ratio(current_pe),
-            fmt_ratio(current_forward_pe),
-            fmt_ratio(current_peg),
-            fmt_ratio(current_price_sales),
-            fmt_ratio(current_price_book),
-            fmt_ratio(current_ev_revenue),
-            fmt_ratio(current_ev_ebitda),
-        ],
-    }).set_index('Metric')
-
-    st.subheader('Valuation Measures', divider=True)
-    st.dataframe(
-        valuation_df,
-        hide_index=False,
-        use_container_width=True,
-        column_config={
-            col: st.column_config.Column(
-                help=f'{col} valuation measure',
-                width='medium'
-            )
-            for col in valuation_df.columns
-        }
-    )
-
-
 def render_overview_section(info, stock):
     col1, col2, col3, col4 = st.columns(4)
 
@@ -224,6 +133,16 @@ def render_overview_section(info, stock):
 
     st.subheader('Description', divider=True)
     st.text(info.get('longBusinessSummary', 'No description available.'))
+
+    st.subheader('Key Executives', divider=True)
+    exec = info.get('companyOfficers', [])
+    if exec:
+        exec_df = pd.DataFrame(exec)
+        exec_df = exec_df[['name', 'title', 'totalPay', 'exercisedValue', 'yearBorn']]
+        exec_df.columns = ['Name', 'Title', 'Total Pay', 'Exercised Value', 'Year Born']
+        st.dataframe(exec_df)
+    else:
+        st.info('No key executives information available.')
 
     st.subheader('Shareholders', divider=True)
     try:
@@ -269,18 +188,6 @@ def render_overview_section(info, stock):
         st.dataframe(institutional_holders_df, hide_index=True, use_container_width=True)
     else:
         st.info('No institutional holder information available.')
-
-    st.subheader('Key Executives', divider=True)
-    exec = info.get('companyOfficers', [])
-    if exec:
-        exec_df = pd.DataFrame(exec)
-        exec_df = exec_df[['name', 'title', 'totalPay', 'exercisedValue', 'yearBorn']]
-        exec_df.columns = ['Name', 'Title', 'Total Pay', 'Exercised Value', 'Year Born']
-        st.dataframe(exec_df)
-    else:
-        st.info('No key executives information available.')
-
-    render_valuation_measures_table(info, stock)
 
 
 def get_fundamental_period_label(info, stock=None):
