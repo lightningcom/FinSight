@@ -247,7 +247,26 @@ def render_overview_section(info, stock):
 
     if institutional_holders is not None and not institutional_holders.empty:
         st.caption('Largest reported institutional holders')
-        st.dataframe(institutional_holders, hide_index=True, use_container_width=True)
+        institutional_holders_df = institutional_holders.copy()
+        if 'Date Reported' in institutional_holders_df.columns:
+            institutional_holders_df['Date Reported'] = pd.to_datetime(
+                institutional_holders_df['Date Reported'], errors='coerce'
+            ).dt.strftime('%Y-%m-%d')
+        for column in ['pctHeld', 'pctChange']:
+            if column in institutional_holders_df.columns:
+                institutional_holders_df[column] = (
+                    pd.to_numeric(institutional_holders_df[column], errors='coerce') * 100
+                ).map(lambda value: f'{value:,.2f}%' if pd.notna(value) else 'N/A')
+        for column in ['Shares', 'Value']:
+            if column in institutional_holders_df.columns:
+                institutional_holders_df[column] = pd.to_numeric(
+                    institutional_holders_df[column], errors='coerce'
+                ).map(lambda value: f'{value:,.0f}' if pd.notna(value) else 'N/A')
+        institutional_holders_df = institutional_holders_df.rename(columns={
+            'pctHeld': '% Held',
+            'pctChange': '% Change',
+        })
+        st.dataframe(institutional_holders_df, hide_index=True, use_container_width=True)
     else:
         st.info('No institutional holder information available.')
 
